@@ -190,7 +190,6 @@ func SubscribeCallback(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 func CreateChannel(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	gn := goon.FromContext(c)
 
-
 	ch := Channel{Id: r.FormValue("id")}
 	if err := gn.Get(&ch);
 

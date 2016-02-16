@@ -127,6 +127,17 @@ type Channel struct {
     FeedLinks  string        `datastore:"f,noindex"`
 }
 
+type Hangout struct {
+	_kind         string        `goon:"kind,H"`
+	Id     	      string        `datastore:"-" goon:"id"`
+    Active     	  string 		`datastore:"ac,noindex"`
+    ParentChannel string 		`datastore:"pc,noindex"`
+    CreatedBy     string 		`datastore:"cb,noindex"`
+    DateCreated   string 		`datastore:"dc,noindex"`
+    Hook		  string 		`datastore:"hk,noindex"`
+    Token		  string 		`datastore:"tk,noindex"`
+}
+
 type Feed struct {
 	_kind      string        `goon:"kind,F"`
 	Url        string        `datastore:"-" goon:"id"`

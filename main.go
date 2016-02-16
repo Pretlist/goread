@@ -96,6 +96,11 @@ func RegisterHandlers(r *mux.Router) {
 	router.Handle("/admin/subhub", mpg.NewHandler(AdminSubHub)).Name("admin-subhub-feed")
 	router.Handle("/admin/stats", mpg.NewHandler(AdminStats)).Name("admin-stats")
 	router.Handle("/admin/update-feed", mpg.NewHandler(AdminUpdateFeed)).Name("admin-update-feed")
+
+	router.Handle("/api/channels.list", mpg.NewHandler(ChannelList)).Name("channels.list")
+	router.Handle("/api/users.list", mpg.NewHandler(UsersList)).Name("users.list")
+	router.Handle("/api/services.addhangouts", mpg.NewHandler(AddHangouts)).Name("services.addhangouts")
+	router.Handle("/api/services.hangoutlist", mpg.NewHandler(HangoutList)).Name("services.hangoutlist")
 /*	router.Handle("/user/charge", mpg.NewHandler(Charge)).Name("charge")
 	router.Handle("/user/account", mpg.NewHandler(Account)).Name("account")
 	router.Handle("/user/uncheckout", mpg.NewHandler(Uncheckout)).Name("uncheckout")*/
