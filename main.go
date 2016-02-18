@@ -110,6 +110,8 @@ func RegisterHandlers(r *mux.Router) {
 /*	router.Handle("/user/charge", mpg.NewHandler(Charge)).Name("charge")
 	router.Handle("/user/account", mpg.NewHandler(Account)).Name("account")
 	router.Handle("/user/uncheckout", mpg.NewHandler(Uncheckout)).Name("uncheckout")*/
+	router.Handle("/api/services.createmessage", mpg.NewHandler(CreateMessage)).Name("services.createmessage")
+	router.Handle("/api/services.getmessages", mpg.NewHandler(GetMessages)).Name("services.getmessages")
 
 	//router.Handle("/tasks/delete-blobs", mpg.NewHandler(DeleteBlobs)).Name("delete-blobs")
 

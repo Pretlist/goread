@@ -31,10 +31,11 @@ import (
 	mpg "github.com/mjibson/goread/_third_party/github.com/MiniProfiler/go/miniprofiler_gae"
 	"github.com/mjibson/goread/_third_party/github.com/mjibson/goon"
 
+	"github.com/pusher/pusher-http-go"
+
 	"appengine"
 	"appengine/datastore"
 	"appengine/urlfetch"
-    "github.com/pusher/pusher-http-go"
 )
 
 type APResponseEnvelope struct {
@@ -90,17 +91,17 @@ func ChannelList(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	gn := goon.FromContext(c)
 	q := datastore.NewQuery(gn.Kind(&Channel{}))
 	var ch []Channel
-	
+
 	_, err1 := gn.GetAll(q, &ch)
 	if err1 != nil {
-	 	return
+		return
 	}
 
 	b, err2 := json.Marshal(ch)
 	if err2 != nil {
-	 	return
+		return
 	}
-	
+
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Write(b)
 }
@@ -109,17 +110,48 @@ func UsersList(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	gn := goon.FromContext(c)
 	q := datastore.NewQuery(gn.Kind(&User{}))
 	var us []User
-	
+
 	_, err1 := gn.GetAll(q, &us)
 	if err1 != nil {
-	 	return
+		return
 	}
 
 	b, err2 := json.Marshal(us)
 	if err2 != nil {
-	 	return
+		return
 	}
-	
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Write(b)
+}
+
+func CreateMessage(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	gn := goon.FromContext(c)
+
+	msg := Message{
+		Title:       r.FormValue("title"),
+		CreatedBy:   r.FormValue("createdBy"),
+		DateCreated: r.FormValue("dateCreated"),
+		Channel:     r.FormValue("channel"),
+		DocId:       r.FormValue("docId"),
+		Content:     r.FormValue("content"),
+	}
+	gn.Put(&msg)
+}
+
+func GetMessages(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	gn := goon.FromContext(c)
+	q := datastore.NewQuery(gn.Kind(&Message{}))
+	var msgs []Message
+	_, err1 := gn.GetAll(q, &msgs)
+	if err1 != nil {
+		return
+	}
+	b, err2 := json.Marshal(msgs)
+	if err2 != nil {
+		return
+	}
+
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Write(b)
 }
@@ -130,77 +162,73 @@ func AddHangouts(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	gn := goon.FromContext(c)
 
 	ho := Hangout{Id: r.FormValue("hangoutId")}
-	if err := gn.Get(&ho);
-
-	err != nil {
+	if err := gn.Get(&ho); err != nil {
 		ho = Hangout{
-				Id: r.FormValue("hangoutId"),
-    			Active: r.FormValue("active"),
-    			ParentChannel: r.FormValue("channel"),
-    			CreatedBy: r.FormValue("createdBy"),
-    			DateCreated: r.FormValue("dateCreated"),
-    			Hook: r.FormValue("hook"),
-    			Token: r.FormValue("token"),
-			}
+			Id:            r.FormValue("hangoutId"),
+			Active:        r.FormValue("active"),
+			ParentChannel: r.FormValue("channel"),
+			CreatedBy:     r.FormValue("createdBy"),
+			DateCreated:   r.FormValue("dateCreated"),
+			Hook:          r.FormValue("hook"),
+			Token:         r.FormValue("token"),
+		}
 		gn.Put(&ho)
 		return
 	}
 
-
 	cn := appengine.NewContext(r)
-    urlfetchClient := urlfetch.Client(cn)
+	urlfetchClient := urlfetch.Client(cn)
 
-    client := pusher.Client{
-        AppId:  "178872",
-        Key:    "2aad67c195708eaa0e5f",
-        Secret: "048f50b1be4faa0aa64b",
-        HttpClient: urlfetchClient,
-    }
+	client := pusher.Client{
+		AppId:      "178872",
+		Key:        "2aad67c195708eaa0e5f",
+		Secret:     "048f50b1be4faa0aa64b",
+		HttpClient: urlfetchClient,
+	}
 
-    if r.FormValue("channelName") != "" {
-    	if strings.Contains(ho.ParentChannel, r.FormValue("channelName")) {
-	        //fmt.Printf("Found subStr in str \n")
-	    } else {
-	        channels := ho.ParentChannel + ";" + r.FormValue("channelName")
+	if r.FormValue("channelName") != "" {
+		if strings.Contains(ho.ParentChannel, r.FormValue("channelName")) {
+			//fmt.Printf("Found subStr in str \n")
+		} else {
+			channels := ho.ParentChannel + ";" + r.FormValue("channelName")
 			ho.ParentChannel = channels
-	    }
-    }
+		}
+	}
 
-    ho.Hook = r.FormValue("url")
-    ho.Active = r.FormValue("active")
-    gn.Put(&ho)
+	ho.Hook = r.FormValue("url")
+	ho.Active = r.FormValue("active")
+	gn.Put(&ho)
 
-    mapH := map[string]string{"url": ho.Hook, "displayName": ho.CreatedBy, "active": ho.Active, "channel": ho.ParentChannel}
-    mapB, err := json.Marshal(mapH)
+	mapH := map[string]string{"url": ho.Hook, "displayName": ho.CreatedBy, "active": ho.Active, "channel": ho.ParentChannel}
+	mapB, err := json.Marshal(mapH)
 
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-    client.Trigger("test_channel", "my_event", mapH)
+	client.Trigger("test_channel", "my_event", mapH)
 
+	//Set the cross origin resource sharing header to allow AJAX
 
-    //Set the cross origin resource sharing header to allow AJAX
-
-    w.Write(mapB)
+	w.Write(mapB)
 }
 
 func HangoutList(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	gn := goon.FromContext(c)
 	q := datastore.NewQuery(gn.Kind(&Hangout{}))
 	var ho []Hangout
-	
+
 	_, err1 := gn.GetAll(q, &ho)
 	if err1 != nil {
-	 	return
+		return
 	}
 
 	b, err2 := json.Marshal(ho)
 	if err2 != nil {
-	 	return
+		return
 	}
-	
+
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Write(b)
 }
@@ -461,5 +489,3 @@ func WebhookPaypal(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 		client.Trigger("test_channel", "my_event", py)
 		//w.Write(mapB)
 }
-
- 

@@ -122,20 +122,31 @@ type readStory struct {
 type Read map[readStory]bool
 
 type Channel struct {
-	_kind      string        `goon:"kind,C"`
-	Id     	   string        `datastore:"-" goon:"id"`
-    FeedLinks  string        `datastore:"f,noindex"`
+	_kind     string `goon:"kind,C"`
+	Id        string `datastore:"-" goon:"id"`
+	FeedLinks string `datastore:"f,noindex"`
 }
 
 type Hangout struct {
-	_kind         string        `goon:"kind,H"`
-	Id     	      string        `datastore:"-" goon:"id"`
-    Active     	  string 		`datastore:"ac,noindex"`
-    ParentChannel string 		`datastore:"pc,noindex"`
-    CreatedBy     string 		`datastore:"cb,noindex"`
-    DateCreated   string 		`datastore:"dc,noindex"`
-    Hook		  string 		`datastore:"hk,noindex"`
-    Token		  string 		`datastore:"tk,noindex"`
+	_kind         string `goon:"kind,H"`
+	Id            string `datastore:"-" goon:"id"`
+	Active        string `datastore:"ac,noindex"`
+	ParentChannel string `datastore:"pc,noindex"`
+	CreatedBy     string `datastore:"cb,noindex"`
+	DateCreated   string `datastore:"dc,noindex"`
+	Hook          string `datastore:"hk,noindex"`
+	Token         string `datastore:"tk,noindex"`
+}
+
+type Message struct {
+	_kind       string `goon:"kind,M"`
+	Id          int64  `datastore:"-" goon:"id"`
+	Title       string `datastore:"t,noindex"`
+	CreatedBy   string `datastore:"cb,noindex"`
+	DateCreated string `datastore:"dc,noindex"`
+	Channel     string `datastore:"cn,noindex"`
+	DocId       string `datastore:"di,noindex"`
+	Content     string `datastore:"ct,noindex"`
 }
 
 type Payment struct {
