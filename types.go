@@ -138,6 +138,20 @@ type Hangout struct {
     Token		  string 		`datastore:"tk,noindex"`
 }
 
+type Payment struct {
+	_kind         string        `goon:"kind,P"`
+	Id     	      string        `datastore:"-" goon:"id"`
+    Active     	  string 		`datastore:"ac,noindex"`
+    PaidBy		  string 		`datastore:"pb,noindex"`
+    Status        string 		`datastore:"st,noindex"`
+    DateCreated   string 		`datastore:"dc,noindex"`
+    Type		  string 		`datastore:"ty,noindex"`
+    Funding		  string 		`datastore:"fu,noindex"`
+    Amount		  string 		`datastore:"am,noindex"`
+    Currency      string 		`datastore:"cr,noindex"`
+    Source		  string 		`datastore:"so,noindex"`
+}
+
 type Feed struct {
 	_kind      string        `goon:"kind,F"`
 	Url        string        `datastore:"-" goon:"id"`

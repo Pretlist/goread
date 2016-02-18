@@ -101,6 +101,12 @@ func RegisterHandlers(r *mux.Router) {
 	router.Handle("/api/users.list", mpg.NewHandler(UsersList)).Name("users.list")
 	router.Handle("/api/services.addhangouts", mpg.NewHandler(AddHangouts)).Name("services.addhangouts")
 	router.Handle("/api/services.hangoutlist", mpg.NewHandler(HangoutList)).Name("services.hangoutlist")
+	router.Handle("/api/services.paymentlist", mpg.NewHandler(PaymentList)).Name("services.paymentlist")
+	router.Handle("/api/payment.success", mpg.NewHandler(PaymentSuccess)).Name("payment.success")
+	router.Handle("/api/paypal.ipn", mpg.NewHandler(IPN)).Name("paypal.ipn")
+	router.Handle("/api/access.token", mpg.NewHandler(GetAccessToken)).Name("access.token")
+	router.Handle("/api/webhook.stripe", mpg.NewHandler(WebhookStripe)).Name("webhook.stripe")
+	router.Handle("/api/webhook.paypal", mpg.NewHandler(WebhookPaypal)).Name("webhook.paypal")
 /*	router.Handle("/user/charge", mpg.NewHandler(Charge)).Name("charge")
 	router.Handle("/user/account", mpg.NewHandler(Account)).Name("account")
 	router.Handle("/user/uncheckout", mpg.NewHandler(Uncheckout)).Name("uncheckout")*/

@@ -20,6 +20,13 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"net/url"
+	"strconv"
+
+	"bytes"
+
+	//"io/ioutil"
+ 	//"regexp"
 
 	mpg "github.com/mjibson/goread/_third_party/github.com/MiniProfiler/go/miniprofiler_gae"
 	"github.com/mjibson/goread/_third_party/github.com/mjibson/goon"
@@ -29,6 +36,55 @@ import (
 	"appengine/urlfetch"
     "github.com/pusher/pusher-http-go"
 )
+
+type APResponseEnvelope struct {
+	Timestamp     string `json:"timestamp"`
+	Ack           string `json:"ack"`
+	CorrelationId string `json:"correlationId"`
+	Build         string `json:"build"`
+}
+
+type APRsp struct {
+	ResponseEnvelope  APResponseEnvelope `json:"responseEnvelope"`
+	Token     		  string 			 `json:"token"`
+	TokenSecret		  string    		 `json:"tokenSecret"`
+	Scope			[]string             `json:"scope"`                   
+}
+
+/*type StripeWebHook struct {
+    Id 			string `json:"id"`
+    Created  	int    `json:"created"`
+    Type 		string `json:"type"`
+}*/
+
+type Event struct {
+	ID       string     `json:"id"`
+	Live     bool       `json:"livemode"`
+	Created  int      `json:"created"`
+	Data     *EventData `json:"data"`
+	Webhooks uint64     `json:"pending_webhooks"`
+	Type     string     `json:"type"`
+	Req      string     `json:"request"`
+	UserID   string     `json:"user_id"`
+}
+
+// EventData is the unmarshalled object as a map.
+type EventData struct {
+	Raw  *RawData        `json:"object"`
+}
+
+type RawData struct {
+	ID       string       `json:"id"`
+	Amount   int 		  `json:"amount"`
+	Status 	 string       `json:"status"`
+	Currency string 	  `json:"currency"`
+	Source   *SourceData  `json:"source"`
+}
+
+type SourceData struct {
+	Name    string       `json:"name"`
+	Funding string       `json:"funding"`
+}
 
 func ChannelList(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	gn := goon.FromContext(c)
@@ -148,3 +204,262 @@ func HangoutList(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Write(b)
 }
+
+func PaymentSuccess(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+
+	cn := appengine.NewContext(r)
+    urlfetchClient := urlfetch.Client(cn)
+
+    client := pusher.Client{
+        AppId:  "178872",
+        Key:    "2aad67c195708eaa0e5f",
+        Secret: "048f50b1be4faa0aa64b",
+        HttpClient: urlfetchClient,
+    }
+
+    mapH := map[string]string{"status": "Successfully Paid !"}
+    mapB, err := json.Marshal(mapH)
+
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    client.Trigger("test_channel", "my_event", mapH)
+	
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Write(mapB)
+}
+
+func WebhookStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	cn := appengine.NewContext(r)
+    urlfetchClient := urlfetch.Client(cn)
+
+    client := pusher.Client{
+        AppId:  "178872",
+        Key:    "2aad67c195708eaa0e5f",
+        Secret: "048f50b1be4faa0aa64b",
+        HttpClient: urlfetchClient,
+    }
+
+	gn := goon.FromContext(c)
+
+	py := Payment{Id: r.FormValue("paymentId")}
+	if err := gn.Get(&py);
+
+	err != nil {
+		decoder := json.NewDecoder(r.Body)
+	    var swh Event   
+	    err := decoder.Decode(&swh)
+	    
+	    if err != nil {
+	        http.Error(w, err.Error(), http.StatusInternalServerError)
+	        return
+	    }
+		py = Payment{
+				Id: swh.Data.Raw.ID,
+			    Active: "true",
+			    PaidBy: swh.Data.Raw.Source.Name,
+			    Status: swh.Data.Raw.Status,
+			    DateCreated: strconv.Itoa(swh.Created),
+			    Type: swh.Type,
+			    Funding: swh.Data.Raw.Source.Funding,
+			    Amount: strconv.Itoa(swh.Data.Raw.Amount),
+			    Currency:swh.Data.Raw.Currency,
+			    Source: "stripe",
+			}
+		gn.Put(&py)
+		//mapH := map[string]string{"source": "stripe", "status": swh.Data.Raw.Status}
+		//mapB, err := json.Marshal(py)
+
+	    if err != nil {
+	        http.Error(w, err.Error(), http.StatusInternalServerError)
+	        return
+	    }
+
+    	client.Trigger("test_channel", "my_event", py)
+		return
+	}
+
+	py.Active = r.FormValue("active")
+    gn.Put(&py)
+	client.Trigger("test_channel", "my_event", py)
+	//w.Write(mapB)
+}
+
+func PaymentList(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	gn := goon.FromContext(c)
+	q := datastore.NewQuery(gn.Kind(&Payment{}))
+	var ho []Payment
+	
+	_, err1 := gn.GetAll(q, &ho)
+	if err1 != nil {
+	 	return
+	}
+
+	b, err2 := json.Marshal(ho)
+	if err2 != nil {
+	 	return
+	}
+	
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Write(b)
+}
+
+
+func GetAccessToken(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	//c := appengine.NewContext(r)
+
+	ap := map[string]string{"token": r.FormValue("request_token"), "verifier": r.FormValue("verification_code"), "requestEnvelope": "{'errorLanguage':'en_US'}"}
+
+	b, err := json.Marshal(ap)
+
+	if err != nil {
+		return
+	}
+	buf := bytes.NewReader(b)
+
+	req, err := http.NewRequest("POST", "https://svcs.sandbox.paypal.com/Permissions/GetAccessToken", buf)
+	if err != nil {
+		return
+	}
+
+
+	h := &req.Header
+	h.Set("X-PAYPAL-SECURITY-USERID", "payme_api1.pretlist.com")
+	h.Set("X-PAYPAL-SECURITY-PASSWORD", "DXRLZABPS3VEX44W")
+	h.Set("X-PAYPAL-SECURITY-SIGNATURE", "AV56f8z5u6-nc0hOEpPsCNZgh-WeAgzupj2SjH4bg5xOc2SXgmLp3XRK")
+	h.Set("X-PAYPAL-REQUEST-DATA-FORMAT", "JSON")
+	h.Set("X-PAYPAL-RESPONSE-DATA-FORMAT", "JSON")
+	h.Set("X-PAYPAL-APPLICATION-ID", "APP-80W284485P519543T")
+
+	cl := &http.Client{}
+	rsp, err := cl.Do(req)
+	if err != nil {
+		return
+	}
+	defer rsp.Body.Close()
+
+	b2 := make([]byte, 1024)
+	n, err := rsp.Body.Read(b2)
+	aprsp := &APRsp{}
+	err = json.Unmarshal(b2[0:n], aprsp)
+	if err != nil {
+		return
+	}
+
+
+	/*cn := appengine.NewContext(r)
+    urlfetchClient := urlfetch.Client(cn)
+
+    client := pusher.Client{
+        AppId:  "178872",
+        Key:    "2aad67c195708eaa0e5f",
+        Secret: "048f50b1be4faa0aa64b",
+        HttpClient: urlfetchClient,
+    }
+
+    mapH := map[string]string{"request_token": r.FormValue("request_token"), "verification_code": r.FormValue("verification_code")}
+    mapB, err := json.Marshal(mapH)
+
+    if err != nil {
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    client.Trigger("test_channel", "my_event", mapH)*/
+	
+	w.Write(b)
+}
+
+func IPN(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+ 	err := r.ParseForm() // need this to get PayPal's HTTP POST of IPN data
+
+ 	if err != nil {
+ 		//fmt.Println(err)
+ 		return
+ 	}
+
+ 	if r.Method == "POST" {
+
+ 		var postStr string = ""
+
+ 		for k, v := range r.Form {
+ 			//fmt.Println("key :", k)
+ 			//fmt.Println("value :", strings.Join(v, ""))
+
+           // NOTE : Store the IPN data k,v into a slice. It will be useful for database entry later.
+
+ 			postStr = postStr + k + "=" + url.QueryEscape(strings.Join(v, "")) + " "
+ 		}
+
+ 		cn := appengine.NewContext(r)
+	    urlfetchClient := urlfetch.Client(cn)
+
+	    client := pusher.Client{
+	        AppId:  "178872",
+	        Key:    "2aad67c195708eaa0e5f",
+	        Secret: "048f50b1be4faa0aa64b",
+	        HttpClient: urlfetchClient,
+	    }
+
+	    mapH:= map[string]string{"status": postStr}
+ 		client.Trigger("test_channel", "my_event", mapH)
+	
+ 	}
+}
+
+func WebhookPaypal(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+		cn := appengine.NewContext(r)
+	    urlfetchClient := urlfetch.Client(cn)
+
+	    client := pusher.Client{
+	        AppId:  "178872",
+	        Key:    "2aad67c195708eaa0e5f",
+	        Secret: "048f50b1be4faa0aa64b",
+	        HttpClient: urlfetchClient,
+	    }
+
+		gn := goon.FromContext(c)
+
+		py := Payment{Id: r.FormValue("paymentId")}
+		if err := gn.Get(&py);
+
+		err != nil {
+		    
+			py = Payment{
+					Id: r.FormValue("txn_id"),
+				    Active: "true",
+				    PaidBy: r.FormValue("payer_email"),
+				    Status: r.FormValue("payment_status"),
+				    DateCreated: r.FormValue("payment_date"),
+				    Type: r.FormValue("transaction_subject"),
+				    Funding: r.FormValue("transaction_subject"),
+				    Amount: r.FormValue("mc_gross"),
+				    Currency:r.FormValue("mc_currency"),
+				    Source: "paypal",
+				}
+			gn.Put(&py)
+			//mapH := map[string]string{"source": "stripe", "status": swh.Data.Raw.Status}
+			//mapB, err := json.Marshal(py)
+
+		    if err != nil {
+		        http.Error(w, err.Error(), http.StatusInternalServerError)
+		        return
+		    }
+
+	    	client.Trigger("test_channel", "my_event", py)
+			return
+		}
+
+		py.Active = r.FormValue("active")
+	    gn.Put(&py)
+		client.Trigger("test_channel", "my_event", py)
+		//w.Write(mapB)
+}
+
+ 
