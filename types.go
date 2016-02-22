@@ -149,6 +149,17 @@ type Message struct {
 	Content     string `datastore:"ct,noindex"`
 }
 
+type StripeSubscription struct {
+	_kind       string `goon:"kind,ST"`
+	Active      string `datastore:"ac,noindex"`
+	Id          int64  `datastore:"-" goon:"id"`
+	Channel     string `datastore:"ch,noindex"`
+	CreatedBy   string `datastore:"cb,noindex"`
+	DateCreated string `datastore:"dc,noindex"`
+	Code 		string `datastore:"cd,noindex"`
+	Scope       string `datastore:"sc,noindex"`
+}
+
 type Payment struct {
 	_kind         string        `goon:"kind,P"`
 	Id     	      string        `datastore:"-" goon:"id"`

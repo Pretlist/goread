@@ -33,6 +33,9 @@ import (
 
 	"github.com/pusher/pusher-http-go"
 
+	"github.com/stripe/stripe-go"
+    "github.com/stripe/stripe-go/client"
+
 	"appengine"
 	"appengine/datastore"
 	"appengine/urlfetch"
@@ -156,6 +159,54 @@ func GetMessages(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
+
+func SubscribeStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+
+	ar := strings.Split(r.FormValue("state"), "~")
+
+	gn := goon.FromContext(c)
+
+	sc := StripeSubscription{
+		Active:		 "true",
+		CreatedBy:   ar[0],
+		Channel:     ar[1],
+		DateCreated: ar[2],
+		Code:        r.FormValue("code"),
+		Scope:       r.FormValue("scope"),
+	}
+	gn.Put(&sc)
+
+	cn := appengine.NewContext(r)
+	urlfetchClient := urlfetch.Client(cn)
+
+	client := pusher.Client{
+		AppId:      "178872",
+		Key:        "2aad67c195708eaa0e5f",
+		Secret:     "048f50b1be4faa0aa64b",
+		HttpClient: urlfetchClient,
+	}
+
+	client.Trigger("test_channel", "my_event", sc)
+	return
+}
+
+func SubscriptionList(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	gn := goon.FromContext(c)
+	q := datastore.NewQuery(gn.Kind(&StripeSubscription{}))
+	var sc []StripeSubscription
+	_, err1 := gn.GetAll(q, &sc)
+	if err1 != nil {
+		return
+	}
+	b, err2 := json.Marshal(sc)
+	if err2 != nil {
+		return
+	}
+
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Write(b)
+}
+
 func AddHangouts(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -259,6 +310,37 @@ func PaymentSuccess(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	w.Write(mapB)
 }
 
+func PaymentStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	cn := appengine.NewContext(r)
+    httpClient := urlfetch.Client(cn)
+
+    sc := client.New("sk_test_eDxoEXHMVzXkHS2Vjvxndjz3", stripe.NewBackends(httpClient))
+
+    params := stripe.ChargeParams{
+	    Desc:     "Pretlist Subscription",
+	    Amount:   20,
+	    Currency: "usd",
+	}
+	params.SetSource(&stripe.CardParams{
+	    Name:   r.FormValue("stripeEmail"),
+	    Number: "378282246310005",
+	    Month:  "06",
+	    Year:   "17",
+	})
+
+	_, err := sc.Charges.New(&params)
+
+	if err == nil {
+		//fmt.Fprintf(w, "Successful test payment!")
+	} else {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+	}
+
+}
+
 func WebhookStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -302,10 +384,10 @@ func WebhookStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 		//mapH := map[string]string{"source": "stripe", "status": swh.Data.Raw.Status}
 		//mapB, err := json.Marshal(py)
 
-	    if err != nil {
+	    /*if err != nil {
 	        http.Error(w, err.Error(), http.StatusInternalServerError)
 	        return
-	    }
+	    }*/
 
     	client.Trigger("test_channel", "my_event", py)
 		return
@@ -475,10 +557,10 @@ func WebhookPaypal(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 			//mapH := map[string]string{"source": "stripe", "status": swh.Data.Raw.Status}
 			//mapB, err := json.Marshal(py)
 
-		    if err != nil {
+		   /* if err != nil {
 		        http.Error(w, err.Error(), http.StatusInternalServerError)
 		        return
-		    }
+		    }*/
 
 	    	client.Trigger("test_channel", "my_event", py)
 			return
@@ -488,4 +570,10 @@ func WebhookPaypal(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	    gn.Put(&py)
 		client.Trigger("test_channel", "my_event", py)
 		//w.Write(mapB)
+}
+
+
+
+func CheckoutStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	templates.ExecuteTemplate(w, "checkout-stripe.html", nil)
 }

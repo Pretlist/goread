@@ -47,6 +47,7 @@ func init() {
 		"templates/admin-feed.html",
 		"templates/admin-stats.html",
 		"templates/admin-user.html",
+		"templates/checkout-stripe.html",
 	); err != nil {
 		log.Fatal(err)
 	}
@@ -107,6 +108,10 @@ func RegisterHandlers(r *mux.Router) {
 	router.Handle("/api/access.token", mpg.NewHandler(GetAccessToken)).Name("access.token")
 	router.Handle("/api/webhook.stripe", mpg.NewHandler(WebhookStripe)).Name("webhook.stripe")
 	router.Handle("/api/webhook.paypal", mpg.NewHandler(WebhookPaypal)).Name("webhook.paypal")
+	router.Handle("/api/payment.stripe", mpg.NewHandler(PaymentStripe)).Name("payment.stripe")
+	router.Handle("/api/checkout.stripe", mpg.NewHandler(CheckoutStripe)).Name("checkout.stripe")
+	router.Handle("/api/subscribe.stripe", mpg.NewHandler(SubscribeStripe)).Name("subscribe.stripe")
+	router.Handle("/api/subscription.list", mpg.NewHandler(SubscriptionList)).Name("subscription.list")
 /*	router.Handle("/user/charge", mpg.NewHandler(Charge)).Name("charge")
 	router.Handle("/user/account", mpg.NewHandler(Account)).Name("account")
 	router.Handle("/user/uncheckout", mpg.NewHandler(Uncheckout)).Name("uncheckout")*/
