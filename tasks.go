@@ -36,6 +36,8 @@ import (
 	mpg "github.com/mjibson/goread/_third_party/github.com/MiniProfiler/go/miniprofiler_gae"
 	"github.com/mjibson/goread/_third_party/github.com/mjibson/goon"
 
+	"github.com/pusher/pusher-http-go"
+
 	"appengine"
 	"appengine/blobstore"
 	"appengine/datastore"
@@ -188,6 +190,17 @@ func SubscribeCallback(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 }
 
 func CreateChannel(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+
+	cn := appengine.NewContext(r)
+	urlfetchClient := urlfetch.Client(cn)
+
+	client := pusher.Client{
+		AppId:      "178872",
+		Key:        "2aad67c195708eaa0e5f",
+		Secret:     "048f50b1be4faa0aa64b",
+		HttpClient: urlfetchClient,
+	}
+
 	gn := goon.FromContext(c)
 
 	ch := Channel{Id: r.FormValue("id")}
@@ -196,6 +209,7 @@ func CreateChannel(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	err != nil {
 		ch = Channel{Id: r.FormValue("id"), FeedLinks: r.FormValue("feedLinks")}
 		gn.Put(&ch)
+		client.Trigger("test_channel", "create_channel", ch)
 		return
 	}
 
@@ -205,7 +219,8 @@ func CreateChannel(c mpg.Context, w http.ResponseWriter, r *http.Request) {
         feedLinks := ch.FeedLinks + ";" + r.FormValue("feedLinks")
 		ch.FeedLinks = feedLinks
 		gn.Put(&ch)
-    }	
+    }
+    client.Trigger("test_channel", "create_channel", ch)	
 }
 
 func GetChannels(c mpg.Context, w http.ResponseWriter, r *http.Request) {

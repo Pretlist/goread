@@ -24,6 +24,7 @@ import (
 	"strconv"
 
 	"bytes"
+	"fmt"
 
 	//"io/ioutil"
  	//"regexp"
@@ -187,7 +188,8 @@ func SubscribeStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	}
 
 	client.Trigger("test_channel", "my_event", sc)
-	return
+	html := "<html><body><h1>You have Successfully Subscribed !</h1><h1>You can now close this window.</h1></body></html>"
+	w.Write([]byte(fmt.Sprintf(html)))
 }
 
 func SubscriptionList(c mpg.Context, w http.ResponseWriter, r *http.Request) {
@@ -320,7 +322,7 @@ func PaymentStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 
     params := stripe.ChargeParams{
 	    Desc:     "Pretlist Subscription",
-	    Amount:   20,
+	    Amount:   200,
 	    Currency: "usd",
 	}
 	params.SetSource(&stripe.CardParams{
@@ -368,6 +370,7 @@ func WebhookStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	        http.Error(w, err.Error(), http.StatusInternalServerError)
 	        return
 	    }
+	    amt:= float64(swh.Data.Raw.Amount)/100
 		py = Payment{
 				Id: swh.Data.Raw.ID,
 			    Active: "true",
@@ -376,7 +379,7 @@ func WebhookStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 			    DateCreated: strconv.Itoa(swh.Created),
 			    Type: swh.Type,
 			    Funding: swh.Data.Raw.Source.Funding,
-			    Amount: strconv.Itoa(swh.Data.Raw.Amount),
+			    Amount: strconv.FormatFloat(amt, 'f', 2, 64),
 			    Currency:swh.Data.Raw.Currency,
 			    Source: "stripe",
 			}
