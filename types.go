@@ -149,6 +149,28 @@ type Message struct {
 	Content     string `datastore:"ct,noindex"`
 }
 
+type MailChimpApiKey struct {
+	_kind         string `goon:"kind,MCT"`
+	Id            int64  `datastore:"-" goon:"id"`
+	Key           string `datastore:"k,noindex"`
+	EndPoint      string `datastore:"ep,noindex"`
+	CreatedBy     string `datastore:"cb,noindex"`
+	AccountName   string `datastore:"an,noindex"`
+	Role          string `datastore:"r,noindex"`
+	Email         string `datastore:"e,noindex"`
+	Login         string `datastore:"lo,noindex"`
+	Lists         string `datastore:"li,noindex"` // CSV for List Ids
+	Notifications string `datastore:"nf,noindex"` // CSV for notifications
+	Channel       string `datastore:"ch,noindex"`
+	Webhook       string `datastore:"wh,noindex"`
+}
+
+type MailChimpList struct {
+	_kind string `goon:"kind,MCL"`
+	Id    string `datastore:"-" json:"id" goon:"id"`
+	Name  string `datastore:"n,noindex json:"name"`
+}
+
 type StripeSubscription struct {
 	_kind       string `goon:"kind,ST"`
 	Active      string `datastore:"ac,noindex"`
@@ -156,22 +178,22 @@ type StripeSubscription struct {
 	Channel     string `datastore:"ch,noindex"`
 	CreatedBy   string `datastore:"cb,noindex"`
 	DateCreated string `datastore:"dc,noindex"`
-	Code 		string `datastore:"cd,noindex"`
+	Code        string `datastore:"cd,noindex"`
 	Scope       string `datastore:"sc,noindex"`
 }
 
 type Payment struct {
-	_kind         string        `goon:"kind,P"`
-	Id     	      string        `datastore:"-" goon:"id"`
-    Active     	  string 		`datastore:"ac,noindex"`
-    PaidBy		  string 		`datastore:"pb,noindex"`
-    Status        string 		`datastore:"st,noindex"`
-    DateCreated   string 		`datastore:"dc,noindex"`
-    Type		  string 		`datastore:"ty,noindex"`
-    Funding		  string 		`datastore:"fu,noindex"`
-    Amount		  string 		`datastore:"am,noindex"`
-    Currency      string 		`datastore:"cr,noindex"`
-    Source		  string 		`datastore:"so,noindex"`
+	_kind       string `goon:"kind,P"`
+	Id          string `datastore:"-" goon:"id"`
+	Active      string `datastore:"ac,noindex"`
+	PaidBy      string `datastore:"pb,noindex"`
+	Status      string `datastore:"st,noindex"`
+	DateCreated string `datastore:"dc,noindex"`
+	Type        string `datastore:"ty,noindex"`
+	Funding     string `datastore:"fu,noindex"`
+	Amount      string `datastore:"am,noindex"`
+	Currency    string `datastore:"cr,noindex"`
+	Source      string `datastore:"so,noindex"`
 }
 
 type Feed struct {

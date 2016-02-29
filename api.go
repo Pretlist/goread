@@ -19,15 +19,15 @@ package goapp
 import (
 	"encoding/json"
 	"net/http"
-	"strings"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"bytes"
 	"fmt"
 
 	//"io/ioutil"
- 	//"regexp"
+	//"regexp"
 
 	mpg "github.com/mjibson/goread/_third_party/github.com/MiniProfiler/go/miniprofiler_gae"
 	"github.com/mjibson/goread/_third_party/github.com/mjibson/goon"
@@ -35,11 +35,21 @@ import (
 	"github.com/pusher/pusher-http-go"
 
 	"github.com/stripe/stripe-go"
-    "github.com/stripe/stripe-go/client"
+	"github.com/stripe/stripe-go/client"
 
-	"appengine"
+	"github.com/levigross/grequests"
+
+	"google.golang.org/appengine"
+	"google.golang.org/appengine/urlfetch"
+
 	"appengine/datastore"
-	"appengine/urlfetch"
+)
+
+const (
+	MAILCHIMP_CLIENT_ID     string = "559902324248"
+	MAILCHIMP_CLIENT_SECRET string = "549aa43300a2ccdc6f8c0d9eeecc7ea3"
+	MAILCHIMP_REDIRECT_URI  string = "https://201-dot-pretlist-drive.appspot.com/api/authenticate.mailchimp"
+	MAILCHIMP_WEBHOOK_URL   string = "https://201-dot-pretlist-drive.appspot.com/api/webhook.mailchimp"
 )
 
 type APResponseEnvelope struct {
@@ -50,10 +60,10 @@ type APResponseEnvelope struct {
 }
 
 type APRsp struct {
-	ResponseEnvelope  APResponseEnvelope `json:"responseEnvelope"`
-	Token     		  string 			 `json:"token"`
-	TokenSecret		  string    		 `json:"tokenSecret"`
-	Scope			[]string             `json:"scope"`                   
+	ResponseEnvelope APResponseEnvelope `json:"responseEnvelope"`
+	Token            string             `json:"token"`
+	TokenSecret      string             `json:"tokenSecret"`
+	Scope            []string           `json:"scope"`
 }
 
 /*type StripeWebHook struct {
@@ -65,7 +75,7 @@ type APRsp struct {
 type Event struct {
 	ID       string     `json:"id"`
 	Live     bool       `json:"livemode"`
-	Created  int      `json:"created"`
+	Created  int        `json:"created"`
 	Data     *EventData `json:"data"`
 	Webhooks uint64     `json:"pending_webhooks"`
 	Type     string     `json:"type"`
@@ -75,20 +85,41 @@ type Event struct {
 
 // EventData is the unmarshalled object as a map.
 type EventData struct {
-	Raw  *RawData        `json:"object"`
+	Raw *RawData `json:"object"`
 }
 
 type RawData struct {
-	ID       string       `json:"id"`
-	Amount   int 		  `json:"amount"`
-	Status 	 string       `json:"status"`
-	Currency string 	  `json:"currency"`
-	Source   *SourceData  `json:"source"`
+	ID       string      `json:"id"`
+	Amount   int         `json:"amount"`
+	Status   string      `json:"status"`
+	Currency string      `json:"currency"`
+	Source   *SourceData `json:"source"`
 }
 
 type SourceData struct {
-	Name    string       `json:"name"`
-	Funding string       `json:"funding"`
+	Name    string `json:"name"`
+	Funding string `json:"funding"`
+}
+
+type MailChimpToken struct {
+	AccessToken string `json:"access_token"`
+}
+
+type MailChimpMetaLogin struct {
+	Email     string `json:"email"`
+	LoginName string `json:"login_name"`
+}
+
+type MailChimpMeta struct {
+	DataCenter  string             `json:"dc"`
+	ApiEndPoint string             `json:"api_endpoint"`
+	AccountName string             `json:"accountname"`
+	Role        string             `json:"role"`
+	Login       MailChimpMetaLogin `json:"login"`
+}
+
+type MailChimpLists struct {
+	Lists []MailChimpList `json:"lists"`
 }
 
 func ChannelList(c mpg.Context, w http.ResponseWriter, r *http.Request) {
@@ -160,6 +191,337 @@ func GetMessages(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	w.Write(b)
 }
 
+type MCListStatus struct {
+	List          MailChimpList
+	CheckedForKey bool
+}
+
+type MCKeyLists struct {
+	Key   MailChimpApiKey
+	Lists []MCListStatus
+}
+
+func AuthenticateMailChimp(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	code := r.FormValue("code")
+
+	// Current User is being sent in state
+	currentUser := r.FormValue("state")
+
+	post_args := map[string]string{
+		"grant_type":    "authorization_code",
+		"client_id":     MAILCHIMP_CLIENT_ID,
+		"client_secret": MAILCHIMP_CLIENT_SECRET,
+		"redirect_uri":  MAILCHIMP_REDIRECT_URI,
+		"code":          code,
+	}
+
+	ctx := appengine.NewContext(r)
+	client := urlfetch.Client(ctx)
+
+	tokenUrl := "https://login.mailchimp.com/oauth2/token"
+	resp, err := grequests.Post(tokenUrl,
+		&grequests.RequestOptions{
+			Data:       post_args,
+			HTTPClient: client,
+		})
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	decoder := json.NewDecoder(strings.NewReader(resp.String()))
+	var mcToken MailChimpToken
+	decoder.Decode(&mcToken)
+
+	ro := &grequests.RequestOptions{
+		Headers:    map[string]string{"Authorization": "OAuth" + mcToken.AccessToken},
+		HTTPClient: client,
+	}
+	resp, err = grequests.Get("https://login.mailchimp.com/oauth2/metadata", ro)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	decoder = json.NewDecoder(strings.NewReader(resp.String()))
+	var mcMeta MailChimpMeta
+	decoder.Decode(&mcMeta)
+
+	gn := goon.FromContext(c)
+
+	q := datastore.NewQuery(gn.Kind(&MailChimpApiKey{}))
+	var keys []MailChimpApiKey
+	_, err1 := gn.GetAll(q, &keys)
+	if err1 != nil {
+		return
+	}
+
+	pClient := pusher.Client{
+		AppId:      "178872",
+		Key:        "2aad67c195708eaa0e5f",
+		Secret:     "048f50b1be4faa0aa64b",
+		HttpClient: client,
+	}
+
+	for _, key := range keys {
+		if key.CreatedBy == currentUser {
+			lists := FetchUpdateMailChimpLists(c, w, r, &key)
+			keyLists := strings.Split(key.Lists, ",")
+			var listsWithStatus []MCListStatus
+			for _, list := range lists.Lists {
+				for _, kl := range keyLists {
+					listsWithStatus = append(listsWithStatus, MCListStatus{list, kl == list.Id})
+				}
+			}
+			pClient.Trigger("mc_channel", "user_authenticated", MCKeyLists{key, listsWithStatus})
+			html := "<html><body><h1>You are already registered for this service</h1><h1>You can now close this window.</h1></body></html>"
+			w.Write([]byte(fmt.Sprintf(html)))
+			return
+		}
+	}
+
+	api := MailChimpApiKey{
+		Key:           mcToken.AccessToken,
+		EndPoint:      mcMeta.ApiEndPoint,
+		CreatedBy:     currentUser,
+		AccountName:   mcMeta.AccountName,
+		Role:          mcMeta.Role,
+		Email:         mcMeta.Login.Email,
+		Login:         mcMeta.Login.LoginName,
+		Notifications: "s,u,c",
+	}
+	gn.Put(&api)
+
+	lists := FetchUpdateMailChimpLists(c, w, r, &api)
+	keyLists := strings.Split(api.Lists, ",")
+	var listsWithStatus []MCListStatus
+	for _, list := range lists.Lists {
+		for _, kl := range keyLists {
+			listsWithStatus = append(listsWithStatus, MCListStatus{list, kl == list.Id})
+		}
+	}
+	pClient.Trigger("mc_channel", "user_authenticated", MCKeyLists{api, listsWithStatus})
+	html := "<html><body><h1>You have Successfully Authenticated !</h1><h1>You can now close this window.</h1></body></html>"
+	w.Write([]byte(fmt.Sprintf(html)))
+}
+
+func UpdateMailChimp(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	user := r.FormValue("User")
+	notifications := r.FormValue("Notifications")
+	listsRaw := r.FormValue("Lists") // This is in the form <id>,<true/false>;<id>,<true/false>
+	channel := r.FormValue("Channel")
+
+	lists := strings.Split(listsRaw, ";")
+
+	gn := goon.FromContext(c)
+
+	ctx := appengine.NewContext(r)
+	client := urlfetch.Client(ctx)
+
+	q := datastore.NewQuery(gn.Kind(&MailChimpApiKey{}))
+	var keys []MailChimpApiKey
+	_, err1 := gn.GetAll(q, &keys)
+	if err1 != nil {
+		return
+	}
+
+	listsFormatted := []string{}
+
+	for _, key := range keys {
+		if key.CreatedBy == user {
+			key.Notifications = notifications
+			key.Channel = channel
+			key.Webhook = MAILCHIMP_WEBHOOK_URL
+			for _, l := range lists {
+				list := strings.Split(l, ",")
+				if list[1] == "true" {
+					listsFormatted = append(listsFormatted, list[0])
+				}
+			}
+			key.Lists = strings.Join(listsFormatted, ",")
+		}
+
+		type MCWebHookActions struct {
+			Subscribe      bool `json:"subscribe"`
+			Unsubscribe    bool `json:"unsubscribe"`
+			Campaign       bool `json:"campaign"`
+			Profile        bool `json:"profile"`
+			CleanedAddress bool `json:"cleaned"`
+			UpdatedEmail   bool `json:"upemail"`
+		}
+
+		type MCWebHook struct {
+			ApiKey  string           `json:"apikey"`
+			Id      string           `json:"id"`
+			Url     string           `json:"url"`
+			Actions MCWebHookActions `json:"actions"`
+		}
+
+		type MCDelWebhook struct {
+			Apikey string `json:"apikey"`
+			Id     string `json:"id"`
+			Url    string `json:"url"`
+		}
+
+		for _, li := range strings.Split(key.Lists, ",") {
+			// First make a request to delete any existing webhook with same URL.
+			// Then add a new one with updated settings.
+			delArgs := MCDelWebhook{key.Key, li, key.Webhook}
+
+			delData, _ := json.Marshal(delArgs)
+
+			delReq, _ := http.NewRequest(
+				"POST", key.EndPoint+"/2.0/lists/webhook-del", bytes.NewBuffer([]byte(delData)))
+			delReq.Header.Add("Content-Type", "application/json")
+
+			client.Do(delReq)
+
+			post_args := MCWebHook{
+				key.Key, li, key.Webhook, MCWebHookActions{
+					strings.Contains(key.Notifications, "s"), // subscribes
+					strings.Contains(key.Notifications, "u"), // unsubscribes
+					strings.Contains(key.Notifications, "c"), // campaign sending
+					strings.Contains(key.Notifications, "p"), // profile update
+					strings.Contains(key.Notifications, "a"), // cleaned emails from list
+					strings.Contains(key.Notifications, "e"), // subscriber changed email
+				},
+			}
+
+			data, _ := json.Marshal(post_args)
+
+			req, _ := http.NewRequest(
+				"POST", key.EndPoint+"/2.0/lists/webhook-add", bytes.NewBuffer([]byte(data)))
+			req.Header.Add("Content-Type", "application/json")
+
+			client.Do(req)
+		}
+		gn.Put(&key)
+		return
+	}
+}
+
+func FetchUpdateMailChimpLists(c mpg.Context, w http.ResponseWriter, r *http.Request, k *MailChimpApiKey) MailChimpLists {
+	gn := goon.FromContext(c)
+	ctx := appengine.NewContext(r)
+	client := urlfetch.Client(ctx)
+	ro := &grequests.RequestOptions{
+		Auth:       []string{k.Login, k.Key},
+		HTTPClient: client,
+	}
+	resp, err := grequests.Get(k.EndPoint+"/3.0/lists", ro)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return MailChimpLists{}
+	}
+
+	decoder := json.NewDecoder(strings.NewReader(resp.String()))
+	var lists MailChimpLists
+	decoder.Decode(&lists)
+	for _, list := range lists.Lists {
+		gn.Put(&list)
+	}
+	return lists
+}
+
+func CheckMailChimp(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	gn := goon.FromContext(c)
+
+	ctx := appengine.NewContext(r)
+	client := urlfetch.Client(ctx)
+
+	pClient := pusher.Client{
+		AppId:      "178872",
+		Key:        "2aad67c195708eaa0e5f",
+		Secret:     "048f50b1be4faa0aa64b",
+		HttpClient: client,
+	}
+
+	q := datastore.NewQuery(gn.Kind(&MailChimpApiKey{}))
+	var keys []MailChimpApiKey
+	_, err1 := gn.GetAll(q, &keys)
+	if err1 != nil {
+		return
+	}
+
+	for _, key := range keys {
+		if key.CreatedBy == r.FormValue("user") {
+			lists := FetchUpdateMailChimpLists(c, w, r, &key)
+			keyLists := strings.Split(key.Lists, ",")
+			var listsWithStatus []MCListStatus
+			for _, list := range lists.Lists {
+				for _, kl := range keyLists {
+					listsWithStatus = append(listsWithStatus, MCListStatus{list, kl == list.Id})
+				}
+			}
+			pClient.Trigger("mc_channel", "user_authenticated", MCKeyLists{key, listsWithStatus})
+			return
+		}
+	}
+	pClient.Trigger("mc_channel", "user_authenticated", nil)
+}
+
+func WebhookMailChimp(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	ctx := appengine.NewContext(r)
+	client := urlfetch.Client(ctx)
+
+	gn := goon.FromContext(c)
+
+	listId := r.FormValue("data[list_id]")
+	q := datastore.NewQuery(gn.Kind(&MailChimpList{}))
+	var lists []MailChimpList
+	gn.GetAll(q, &lists)
+
+	var whList MailChimpList
+	for _, list := range lists {
+		if list.Id == listId {
+			whList = list
+			break
+		}
+	}
+
+	var title string
+
+	switch r.FormValue("type") {
+	case "subscribe":
+		title = r.FormValue("data[email]") + " subscribed to " + whList.Name
+	case "unsubscribe":
+		title = r.FormValue("data[email]") + " unsubscribed from " + whList.Name
+	case "campaign":
+		title = r.FormValue("data[subject]") + " was sent to " + whList.Name
+	}
+
+	q = datastore.NewQuery(gn.Kind(&MailChimpApiKey{}))
+	var keys []MailChimpApiKey
+	gn.GetAll(q, &keys)
+	var channels []string
+
+	for _, key := range keys {
+		if strings.Contains(key.Lists, listId) {
+			channels = append(channels, key.Channel)
+		}
+	}
+
+	pClient := pusher.Client{
+		AppId:      "178872",
+		Key:        "2aad67c195708eaa0e5f",
+		Secret:     "048f50b1be4faa0aa64b",
+		HttpClient: client,
+	}
+
+	for _, channel := range channels {
+		msg := Message{
+			Title:       title,
+			CreatedBy:   "MailChimp",
+			DateCreated: r.FormValue("fired_at"),
+			Channel:     channel,
+		}
+		gn.Put(&msg)
+		pClient.Trigger("mc_channel", "webhook_message", msg)
+	}
+}
 
 func SubscribeStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 
@@ -168,7 +530,7 @@ func SubscribeStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	gn := goon.FromContext(c)
 
 	sc := StripeSubscription{
-		Active:		 "true",
+		Active:      "true",
 		CreatedBy:   ar[0],
 		Channel:     ar[1],
 		DateCreated: ar[2],
@@ -289,25 +651,25 @@ func HangoutList(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 func PaymentSuccess(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 
 	cn := appengine.NewContext(r)
-    urlfetchClient := urlfetch.Client(cn)
+	urlfetchClient := urlfetch.Client(cn)
 
-    client := pusher.Client{
-        AppId:  "178872",
-        Key:    "2aad67c195708eaa0e5f",
-        Secret: "048f50b1be4faa0aa64b",
-        HttpClient: urlfetchClient,
-    }
+	client := pusher.Client{
+		AppId:      "178872",
+		Key:        "2aad67c195708eaa0e5f",
+		Secret:     "048f50b1be4faa0aa64b",
+		HttpClient: urlfetchClient,
+	}
 
-    mapH := map[string]string{"status": "Successfully Paid !"}
-    mapB, err := json.Marshal(mapH)
+	mapH := map[string]string{"status": "Successfully Paid !"}
+	mapB, err := json.Marshal(mapH)
 
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-    client.Trigger("test_channel", "my_event", mapH)
-	
+	client.Trigger("test_channel", "my_event", mapH)
+
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Write(mapB)
 }
@@ -316,20 +678,20 @@ func PaymentStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	cn := appengine.NewContext(r)
-    httpClient := urlfetch.Client(cn)
+	httpClient := urlfetch.Client(cn)
 
-    sc := client.New("sk_test_eDxoEXHMVzXkHS2Vjvxndjz3", stripe.NewBackends(httpClient))
+	sc := client.New("sk_test_eDxoEXHMVzXkHS2Vjvxndjz3", stripe.NewBackends(httpClient))
 
-    params := stripe.ChargeParams{
-	    Desc:     "Pretlist Subscription",
-	    Amount:   200,
-	    Currency: "usd",
+	params := stripe.ChargeParams{
+		Desc:     "Pretlist Subscription",
+		Amount:   200,
+		Currency: "usd",
 	}
 	params.SetSource(&stripe.CardParams{
-	    Name:   r.FormValue("stripeEmail"),
-	    Number: "378282246310005",
-	    Month:  "06",
-	    Year:   "17",
+		Name:   r.FormValue("stripeEmail"),
+		Number: "378282246310005",
+		Month:  "06",
+		Year:   "17",
 	})
 
 	_, err := sc.Charges.New(&params)
@@ -338,7 +700,7 @@ func PaymentStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 		//fmt.Fprintf(w, "Successful test payment!")
 	} else {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
+		return
 	}
 
 }
@@ -347,57 +709,55 @@ func WebhookStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	cn := appengine.NewContext(r)
-    urlfetchClient := urlfetch.Client(cn)
+	urlfetchClient := urlfetch.Client(cn)
 
-    client := pusher.Client{
-        AppId:  "178872",
-        Key:    "2aad67c195708eaa0e5f",
-        Secret: "048f50b1be4faa0aa64b",
-        HttpClient: urlfetchClient,
-    }
+	client := pusher.Client{
+		AppId:      "178872",
+		Key:        "2aad67c195708eaa0e5f",
+		Secret:     "048f50b1be4faa0aa64b",
+		HttpClient: urlfetchClient,
+	}
 
 	gn := goon.FromContext(c)
 
 	py := Payment{Id: r.FormValue("paymentId")}
-	if err := gn.Get(&py);
-
-	err != nil {
+	if err := gn.Get(&py); err != nil {
 		decoder := json.NewDecoder(r.Body)
-	    var swh Event   
-	    err := decoder.Decode(&swh)
-	    
-	    if err != nil {
-	        http.Error(w, err.Error(), http.StatusInternalServerError)
-	        return
-	    }
-	    amt:= float64(swh.Data.Raw.Amount)/100
+		var swh Event
+		err := decoder.Decode(&swh)
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		amt := float64(swh.Data.Raw.Amount) / 100
 		py = Payment{
-				Id: swh.Data.Raw.ID,
-			    Active: "true",
-			    PaidBy: swh.Data.Raw.Source.Name,
-			    Status: swh.Data.Raw.Status,
-			    DateCreated: strconv.Itoa(swh.Created),
-			    Type: swh.Type,
-			    Funding: swh.Data.Raw.Source.Funding,
-			    Amount: strconv.FormatFloat(amt, 'f', 2, 64),
-			    Currency:swh.Data.Raw.Currency,
-			    Source: "stripe",
-			}
+			Id:          swh.Data.Raw.ID,
+			Active:      "true",
+			PaidBy:      swh.Data.Raw.Source.Name,
+			Status:      swh.Data.Raw.Status,
+			DateCreated: strconv.Itoa(swh.Created),
+			Type:        swh.Type,
+			Funding:     swh.Data.Raw.Source.Funding,
+			Amount:      strconv.FormatFloat(amt, 'f', 2, 64),
+			Currency:    swh.Data.Raw.Currency,
+			Source:      "stripe",
+		}
 		gn.Put(&py)
 		//mapH := map[string]string{"source": "stripe", "status": swh.Data.Raw.Status}
 		//mapB, err := json.Marshal(py)
 
-	    /*if err != nil {
-	        http.Error(w, err.Error(), http.StatusInternalServerError)
-	        return
-	    }*/
+		/*if err != nil {
+		    http.Error(w, err.Error(), http.StatusInternalServerError)
+		    return
+		}*/
 
-    	client.Trigger("test_channel", "my_event", py)
+		client.Trigger("test_channel", "my_event", py)
 		return
 	}
 
 	py.Active = r.FormValue("active")
-    gn.Put(&py)
+	gn.Put(&py)
 	client.Trigger("test_channel", "my_event", py)
 	//w.Write(mapB)
 }
@@ -406,21 +766,20 @@ func PaymentList(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	gn := goon.FromContext(c)
 	q := datastore.NewQuery(gn.Kind(&Payment{}))
 	var ho []Payment
-	
+
 	_, err1 := gn.GetAll(q, &ho)
 	if err1 != nil {
-	 	return
+		return
 	}
 
 	b, err2 := json.Marshal(ho)
 	if err2 != nil {
-	 	return
+		return
 	}
-	
+
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Write(b)
 }
-
 
 func GetAccessToken(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	//c := appengine.NewContext(r)
@@ -438,7 +797,6 @@ func GetAccessToken(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-
 
 	h := &req.Header
 	h.Set("X-PAYPAL-SECURITY-USERID", "payme_api1.pretlist.com")
@@ -463,119 +821,114 @@ func GetAccessToken(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
 	/*cn := appengine.NewContext(r)
-    urlfetchClient := urlfetch.Client(cn)
+	  urlfetchClient := urlfetch.Client(cn)
 
-    client := pusher.Client{
-        AppId:  "178872",
-        Key:    "2aad67c195708eaa0e5f",
-        Secret: "048f50b1be4faa0aa64b",
-        HttpClient: urlfetchClient,
-    }
+	  client := pusher.Client{
+	      AppId:  "178872",
+	      Key:    "2aad67c195708eaa0e5f",
+	      Secret: "048f50b1be4faa0aa64b",
+	      HttpClient: urlfetchClient,
+	  }
 
-    mapH := map[string]string{"request_token": r.FormValue("request_token"), "verification_code": r.FormValue("verification_code")}
-    mapB, err := json.Marshal(mapH)
+	  mapH := map[string]string{"request_token": r.FormValue("request_token"), "verification_code": r.FormValue("verification_code")}
+	  mapB, err := json.Marshal(mapH)
 
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
+	  if err != nil {
+	      http.Error(w, err.Error(), http.StatusInternalServerError)
+	      return
+	  }
 
-    client.Trigger("test_channel", "my_event", mapH)*/
-	
+	  client.Trigger("test_channel", "my_event", mapH)*/
+
 	w.Write(b)
 }
 
 func IPN(c mpg.Context, w http.ResponseWriter, r *http.Request) {
- 	err := r.ParseForm() // need this to get PayPal's HTTP POST of IPN data
+	err := r.ParseForm() // need this to get PayPal's HTTP POST of IPN data
 
- 	if err != nil {
- 		//fmt.Println(err)
- 		return
- 	}
+	if err != nil {
+		//fmt.Println(err)
+		return
+	}
 
- 	if r.Method == "POST" {
+	if r.Method == "POST" {
 
- 		var postStr string = ""
+		var postStr string = ""
 
- 		for k, v := range r.Form {
- 			//fmt.Println("key :", k)
- 			//fmt.Println("value :", strings.Join(v, ""))
+		for k, v := range r.Form {
+			//fmt.Println("key :", k)
+			//fmt.Println("value :", strings.Join(v, ""))
 
-           // NOTE : Store the IPN data k,v into a slice. It will be useful for database entry later.
+			// NOTE : Store the IPN data k,v into a slice. It will be useful for database entry later.
 
- 			postStr = postStr + k + "=" + url.QueryEscape(strings.Join(v, "")) + " "
- 		}
+			postStr = postStr + k + "=" + url.QueryEscape(strings.Join(v, "")) + " "
+		}
 
- 		cn := appengine.NewContext(r)
-	    urlfetchClient := urlfetch.Client(cn)
+		cn := appengine.NewContext(r)
+		urlfetchClient := urlfetch.Client(cn)
 
-	    client := pusher.Client{
-	        AppId:  "178872",
-	        Key:    "2aad67c195708eaa0e5f",
-	        Secret: "048f50b1be4faa0aa64b",
-	        HttpClient: urlfetchClient,
-	    }
+		client := pusher.Client{
+			AppId:      "178872",
+			Key:        "2aad67c195708eaa0e5f",
+			Secret:     "048f50b1be4faa0aa64b",
+			HttpClient: urlfetchClient,
+		}
 
-	    mapH:= map[string]string{"status": postStr}
- 		client.Trigger("test_channel", "my_event", mapH)
-	
- 	}
+		mapH := map[string]string{"status": postStr}
+		client.Trigger("test_channel", "my_event", mapH)
+
+	}
 }
 
 func WebhookPaypal(c mpg.Context, w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-		cn := appengine.NewContext(r)
-	    urlfetchClient := urlfetch.Client(cn)
+	cn := appengine.NewContext(r)
+	urlfetchClient := urlfetch.Client(cn)
 
-	    client := pusher.Client{
-	        AppId:  "178872",
-	        Key:    "2aad67c195708eaa0e5f",
-	        Secret: "048f50b1be4faa0aa64b",
-	        HttpClient: urlfetchClient,
-	    }
+	client := pusher.Client{
+		AppId:      "178872",
+		Key:        "2aad67c195708eaa0e5f",
+		Secret:     "048f50b1be4faa0aa64b",
+		HttpClient: urlfetchClient,
+	}
 
-		gn := goon.FromContext(c)
+	gn := goon.FromContext(c)
 
-		py := Payment{Id: r.FormValue("paymentId")}
-		if err := gn.Get(&py);
+	py := Payment{Id: r.FormValue("paymentId")}
+	if err := gn.Get(&py); err != nil {
 
-		err != nil {
-		    
-			py = Payment{
-					Id: r.FormValue("txn_id"),
-				    Active: "true",
-				    PaidBy: r.FormValue("payer_email"),
-				    Status: r.FormValue("payment_status"),
-				    DateCreated: r.FormValue("payment_date"),
-				    Type: r.FormValue("transaction_subject"),
-				    Funding: r.FormValue("transaction_subject"),
-				    Amount: r.FormValue("mc_gross"),
-				    Currency:r.FormValue("mc_currency"),
-				    Source: "paypal",
-				}
-			gn.Put(&py)
-			//mapH := map[string]string{"source": "stripe", "status": swh.Data.Raw.Status}
-			//mapB, err := json.Marshal(py)
-
-		   /* if err != nil {
-		        http.Error(w, err.Error(), http.StatusInternalServerError)
-		        return
-		    }*/
-
-	    	client.Trigger("test_channel", "my_event", py)
-			return
+		py = Payment{
+			Id:          r.FormValue("txn_id"),
+			Active:      "true",
+			PaidBy:      r.FormValue("payer_email"),
+			Status:      r.FormValue("payment_status"),
+			DateCreated: r.FormValue("payment_date"),
+			Type:        r.FormValue("transaction_subject"),
+			Funding:     r.FormValue("transaction_subject"),
+			Amount:      r.FormValue("mc_gross"),
+			Currency:    r.FormValue("mc_currency"),
+			Source:      "paypal",
 		}
+		gn.Put(&py)
+		//mapH := map[string]string{"source": "stripe", "status": swh.Data.Raw.Status}
+		//mapB, err := json.Marshal(py)
 
-		py.Active = r.FormValue("active")
-	    gn.Put(&py)
+		/* if err != nil {
+		    http.Error(w, err.Error(), http.StatusInternalServerError)
+		    return
+		}*/
+
 		client.Trigger("test_channel", "my_event", py)
-		//w.Write(mapB)
+		return
+	}
+
+	py.Active = r.FormValue("active")
+	gn.Put(&py)
+	client.Trigger("test_channel", "my_event", py)
+	//w.Write(mapB)
 }
-
-
 
 func CheckoutStripe(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	templates.ExecuteTemplate(w, "checkout-stripe.html", nil)
