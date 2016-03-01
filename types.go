@@ -149,28 +149,6 @@ type Message struct {
 	Content     string `datastore:"ct,noindex"`
 }
 
-type MailChimpApiKey struct {
-	_kind         string `goon:"kind,MCT"`
-	Id            int64  `datastore:"-" goon:"id"`
-	Key           string `datastore:"k,noindex"`
-	EndPoint      string `datastore:"ep,noindex"`
-	CreatedBy     string `datastore:"cb,noindex"`
-	AccountName   string `datastore:"an,noindex"`
-	Role          string `datastore:"r,noindex"`
-	Email         string `datastore:"e,noindex"`
-	Login         string `datastore:"lo,noindex"`
-	Lists         string `datastore:"li,noindex"` // CSV for List Ids
-	Notifications string `datastore:"nf,noindex"` // CSV for notifications
-	Channel       string `datastore:"ch,noindex"`
-	Webhook       string `datastore:"wh,noindex"`
-}
-
-type MailChimpList struct {
-	_kind string `goon:"kind,MCL"`
-	Id    string `datastore:"-" json:"id" goon:"id"`
-	Name  string `datastore:"n,noindex json:"name"`
-}
-
 type StripeSubscription struct {
 	_kind       string `goon:"kind,ST"`
 	Active      string `datastore:"ac,noindex"`

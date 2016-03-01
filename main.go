@@ -112,10 +112,6 @@ func RegisterHandlers(r *mux.Router) {
 	router.Handle("/api/checkout.stripe", mpg.NewHandler(CheckoutStripe)).Name("checkout.stripe")
 	router.Handle("/api/subscribe.stripe", mpg.NewHandler(SubscribeStripe)).Name("subscribe.stripe")
 	router.Handle("/api/subscription.list", mpg.NewHandler(SubscriptionList)).Name("subscription.list")
-	router.Handle("/api/authenticate.mailchimp", mpg.NewHandler(AuthenticateMailChimp)).Name("authenticate.mailchimp")
-	router.Handle("/api/check.mailchimp", mpg.NewHandler(CheckMailChimp)).Name("check.mailchimp")
-	router.Handle("/api/update.mailchimp", mpg.NewHandler(UpdateMailChimp)).Name("update.mailchimp")
-	router.Handle("/api/webhook.mailchimp", mpg.NewHandler(WebhookMailChimp)).Name("webhook.mailchimp")
 	/*	router.Handle("/user/charge", mpg.NewHandler(Charge)).Name("charge")
 		router.Handle("/user/account", mpg.NewHandler(Account)).Name("account")
 		router.Handle("/user/uncheckout", mpg.NewHandler(Uncheckout)).Name("uncheckout")*/
