@@ -100,8 +100,6 @@ func RegisterHandlers(r *mux.Router) {
 
 	router.Handle("/api/channels.list", mpg.NewHandler(ChannelList)).Name("channels.list")
 	router.Handle("/api/users.list", mpg.NewHandler(UsersList)).Name("users.list")
-	router.Handle("/api/services.addhangouts", mpg.NewHandler(AddHangouts)).Name("services.addhangouts")
-	router.Handle("/api/services.hangoutlist", mpg.NewHandler(HangoutList)).Name("services.hangoutlist")
 	router.Handle("/api/services.paymentlist", mpg.NewHandler(PaymentList)).Name("services.paymentlist")
 	router.Handle("/api/payment.success", mpg.NewHandler(PaymentSuccess)).Name("payment.success")
 	router.Handle("/api/paypal.ipn", mpg.NewHandler(IPN)).Name("paypal.ipn")
