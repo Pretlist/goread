@@ -38,11 +38,13 @@ import (
 	mpg "github.com/mjibson/goread/_third_party/github.com/MiniProfiler/go/miniprofiler_gae"
 	"github.com/mjibson/goread/_third_party/github.com/mjibson/goon"
 	"github.com/mjibson/goread/sanitizer"
+	"github.com/pusher/pusher-http-go"
 
 	"appengine"
 	"appengine/blobstore"
 	"appengine/datastore"
 	"appengine/taskqueue"
+	"appengine/urlfetch"
 	"appengine/user"
 )
 
@@ -79,6 +81,62 @@ func Logout(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	http.Redirect(w, r, routeUrl("main"), http.StatusFound)
+}
+
+func SetStatus(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	cu := user.Current(c)
+	status := r.FormValue("status")
+	readChats := r.FormValue("readChats")
+	gn := goon.FromContext(c)
+	q := datastore.NewQuery(gn.Kind(&User{}))
+	var users []User
+
+	_, err1 := gn.GetAll(q, &users)
+
+	if err1 != nil {
+		http.Error(w, err1.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	for i := 0; i < len(users); i++ {
+		if strings.ToLower(users[i].Email) == strings.ToLower(cu.Email) {
+			users[i].Status = status
+			gn.Put(&users[i])
+		}
+	}
+
+	if status == "f" {
+		q = datastore.NewQuery(gn.Kind(&Chat{}))
+	
+		var chats []Chat
+		
+		_, err2 := gn.GetAll(q, &chats)
+		if err2 != nil {
+			return
+		}
+
+		lastChat:= chats[len(chats) - 1]
+
+		cc := ChatCursor{
+			Id:				cu.Email,
+			Cursor:			lastChat.Id,
+			ReadChats:      readChats,
+		}
+		gn.Put(&cc)
+	}
+	
+
+	cn := appengine.NewContext(r)
+    urlfetchClient := urlfetch.Client(cn)
+
+    client := pusher.Client{
+        AppId:  "178872",
+        Key:    "2aad67c195708eaa0e5f",
+        Secret: "048f50b1be4faa0aa64b",
+        HttpClient: urlfetchClient,
+    }
+
+   client.Trigger("test_channel", "user_status_changed", "")
 }
 
 func UploadUrl(c mpg.Context, w http.ResponseWriter, r *http.Request) {

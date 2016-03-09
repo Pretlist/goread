@@ -43,6 +43,24 @@ type User struct {
 	Account  int       `datastore:"a"`
 	Created  time.Time `datastore:"d"`
 	Until    time.Time `datastore:"u"`
+	Status   string    `datastore:"st"`
+}
+
+type Chat struct {
+	_kind       string `goon:"kind,CH"`
+	Id          int64  `datastore:"-" goon:"id"`
+	Created     string `datastore:"cr,noindex"`
+	Destination string `datastore:"de,noindex"`
+	To 			string `datastore:"to,noindex"`
+	From     	string `datastore:"fr,noindex"`
+	Text       	string `datastore:"tx,noindex"`
+}
+
+type ChatCursor struct {
+	_kind       string  `goon:"kind,CC"`
+	Id          string  `datastore:"-" goon:"id"`
+	Cursor      int64   `datastore:"cr,noindex"`
+	ReadChats   string  `datastore:"rc,noindex"`
 }
 
 const (
