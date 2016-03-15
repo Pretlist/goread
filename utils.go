@@ -31,6 +31,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/gorilla/sessions"
 	mpg "github.com/mjibson/goread/_third_party/github.com/MiniProfiler/go/miniprofiler_gae"
 	"github.com/mjibson/goread/_third_party/github.com/mjibson/goon"
 	"github.com/mjibson/goread/_third_party/golang.org/x/net/html/charset"
@@ -69,6 +70,7 @@ type Includes struct {
 	SubURL              string
 	IsDev               bool
 	IsAdmin             bool
+	Session             *sessions.Session
 	/*StripeKey           string
 	StripePlans         []Plan*/
 }
@@ -126,9 +128,12 @@ func includes(c mpg.Context, w http.ResponseWriter, r *http.Request) *Includes {
 		GoogleAnalyticsHost: GOOGLE_ANALYTICS_HOST,
 		SubURL:              subURL,
 		IsDev:               isDevServer,
-/*		StripeKey:           STRIPE_KEY,
-		StripePlans:         STRIPE_PLANS,*/
+		/*		StripeKey:           STRIPE_KEY,
+				StripePlans:         STRIPE_PLANS,*/
 	}
+
+	session, _ := Store.Get(r, "pretlist-session")
+	i.Session = session
 
 	if cu := user.Current(c); cu != nil {
 		gn := goon.FromContext(c)

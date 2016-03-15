@@ -25,6 +25,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/gorilla/sessions"
 	"github.com/mjibson/goread/_third_party/github.com/MiniProfiler/go/miniprofiler"
 	mpg "github.com/mjibson/goread/_third_party/github.com/MiniProfiler/go/miniprofiler_gae"
 	"github.com/mjibson/goread/_third_party/github.com/gorilla/mux"
@@ -36,6 +37,7 @@ import (
 
 var router = new(mux.Router)
 var templates *template.Template
+var Store = sessions.NewCookieStore([]byte("something-very-secret"))
 
 func init() {
 	var err error
