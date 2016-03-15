@@ -54,6 +54,7 @@ type Chat struct {
 	To 			string `datastore:"to,noindex"`
 	From     	string `datastore:"fr,noindex"`
 	Text       	string `datastore:"tx,noindex"`
+	Type        string `datastore:"ty,noindex"`
 }
 
 type ChatCursor struct {
