@@ -50,6 +50,7 @@ func init() {
 		"templates/admin-stats.html",
 		"templates/admin-user.html",
 		"templates/checkout-stripe.html",
+		"templates/index.html",
 	); err != nil {
 		log.Fatal(err)
 	}
