@@ -25,6 +25,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -57,6 +58,11 @@ func LoginGoogle(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 			u.Read = time.Now().Add(-time.Hour * 24)
 			gn.Put(u)
 		}
+	} else {
+		url, _ := user.LoginURL(c, routeUrl("main"))
+		log.Println(url)
+		http.Redirect(w, r, url, http.StatusFound)
+		return
 	}
 
 	http.Redirect(w, r, routeUrl("main"), http.StatusFound)
@@ -107,36 +113,35 @@ func SetStatus(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 
 	if status == "f" {
 		q = datastore.NewQuery(gn.Kind(&Chat{}))
-	
+
 		var chats []Chat
-		
+
 		_, err2 := gn.GetAll(q, &chats)
 		if err2 != nil {
 			return
 		}
 
-		lastChat:= chats[len(chats) - 1]
+		lastChat := chats[len(chats)-1]
 
 		cc := ChatCursor{
-			Id:				cu.Email,
-			Cursor:			lastChat.Id,
-			ReadChats:      readChats,
+			Id:        cu.Email,
+			Cursor:    lastChat.Id,
+			ReadChats: readChats,
 		}
 		gn.Put(&cc)
 	}
-	
 
 	cn := appengine.NewContext(r)
-    urlfetchClient := urlfetch.Client(cn)
+	urlfetchClient := urlfetch.Client(cn)
 
-    client := pusher.Client{
-        AppId:  "178872",
-        Key:    "2aad67c195708eaa0e5f",
-        Secret: "048f50b1be4faa0aa64b",
-        HttpClient: urlfetchClient,
-    }
+	client := pusher.Client{
+		AppId:      "178872",
+		Key:        "2aad67c195708eaa0e5f",
+		Secret:     "048f50b1be4faa0aa64b",
+		HttpClient: urlfetchClient,
+	}
 
-   client.Trigger("test_channel", "user_status_changed", "")
+	client.Trigger("test_channel", "user_status_changed", "")
 }
 
 func UploadUrl(c mpg.Context, w http.ResponseWriter, r *http.Request) {
