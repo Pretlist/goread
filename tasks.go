@@ -207,7 +207,7 @@ func CreateChannel(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	if err := gn.Get(&ch);
 
 	err != nil {
-		ch = Channel{Id: r.FormValue("id"), FeedLinks: r.FormValue("feedLinks")}
+		ch = Channel{Id: r.FormValue("id"), FeedLinks: r.FormValue("feedLinks"), DisplayName: ""}
 		gn.Put(&ch)
 		client.Trigger("test_channel", "create_channel", ch)
 		return

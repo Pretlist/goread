@@ -141,9 +141,10 @@ type readStory struct {
 type Read map[readStory]bool
 
 type Channel struct {
-	_kind     string `goon:"kind,C"`
-	Id        string `datastore:"-" goon:"id"`
-	FeedLinks string `datastore:"f,noindex"`
+	_kind     	string `goon:"kind,C"`
+	Id        	string `datastore:"-" goon:"id"`
+	DisplayName string `datastore:"dn,noindex"`
+	FeedLinks 	string `datastore:"f,noindex"`
 }
 
 type Message struct {
