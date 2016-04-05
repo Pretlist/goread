@@ -25,7 +25,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -60,7 +59,6 @@ func LoginGoogle(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		url, _ := user.LoginURL(c, routeUrl("main"))
-		log.Println(url)
 		http.Redirect(w, r, url, http.StatusFound)
 		return
 	}

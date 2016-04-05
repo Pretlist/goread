@@ -23,6 +23,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gorilla/sessions"
@@ -33,6 +34,7 @@ import (
 
 	"appengine"
 	"appengine/datastore"
+	"appengine/user"
 )
 
 var router = new(mux.Router)
@@ -131,6 +133,11 @@ func RegisterHandlers(r *mux.Router) {
 }
 
 func Main(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+	if cu := user.Current(c); cu != nil {
+		if !strings.HasSuffix(cu.Email, "pretlist.com") {
+			http.Redirect(w, r, routeUrl("logout"), http.StatusFound)
+		}
+	}
 	if err := templates.ExecuteTemplate(w, "base.html", includes(c, w, r)); err != nil {
 		c.Errorf("%v", err)
 		serveError(w, err)
