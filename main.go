@@ -134,7 +134,8 @@ func RegisterHandlers(r *mux.Router) {
 
 func Main(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	if cu := user.Current(c); cu != nil {
-		if !strings.HasSuffix(cu.Email, "pretlist.com") {
+		
+		if !strings.HasSuffix(cu.Email, "pretlist.com") && (cu.Email != "demo.pretlist@gmail.com") && (cu.Email != "demo.pretlist2@gmail.com") {
 			http.Redirect(w, r, routeUrl("logout"), http.StatusFound)
 		}
 	}
