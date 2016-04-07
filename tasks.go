@@ -204,40 +204,38 @@ func CreateChannel(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	gn := goon.FromContext(c)
 
 	ch := Channel{Id: r.FormValue("id")}
-	if err := gn.Get(&ch);
-
-	err != nil {
-		ch = Channel{Id: r.FormValue("id"), FeedLinks: r.FormValue("feedLinks"), DisplayName: ""}
+	if err := gn.Get(&ch); err != nil {
+		ch = Channel{Id: r.FormValue("id"), FeedLinks: r.FormValue("feedLinks"), DisplayName: "", Tags: ""}
 		gn.Put(&ch)
 		client.Trigger("test_channel", "create_channel", ch)
 		return
 	}
 
 	if strings.Contains(ch.FeedLinks, r.FormValue("feedLinks")) {
-        //fmt.Printf("Found subStr in str \n")
-    } else {
-        feedLinks := ch.FeedLinks + ";" + r.FormValue("feedLinks")
+		//fmt.Printf("Found subStr in str \n")
+	} else {
+		feedLinks := ch.FeedLinks + ";" + r.FormValue("feedLinks")
 		ch.FeedLinks = feedLinks
 		gn.Put(&ch)
-    }
-    client.Trigger("test_channel", "create_channel", ch)	
+	}
+	client.Trigger("test_channel", "create_channel", ch)
 }
 
 func GetChannels(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	gn := goon.FromContext(c)
 	q := datastore.NewQuery(gn.Kind(&Channel{}))
 	var ch []Channel
-	
+
 	_, err1 := gn.GetAll(q, &ch)
 	if err1 != nil {
-	 	return
+		return
 	}
 
 	b, err2 := json.Marshal(ch)
 	if err2 != nil {
-	 	return
+		return
 	}
-	
+
 	w.Write(b)
 }
 
@@ -245,19 +243,19 @@ func TotalFeed(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	gn := goon.FromContext(c)
 	q := datastore.NewQuery(gn.Kind(&Feed{})).KeysOnly()
 	var fd []Feed
-	
+
 	_, err1 := gn.GetAll(q, &fd)
 	if err1 != nil {
-	 	return
+		return
 	}
 
 	b, err2 := json.Marshal(fd)
 	if err2 != nil {
-	 	return
+		return
 	}
-	
+
 	w.Write(b)
-	
+
 }
 
 // Task used to subscribe a feed to push.

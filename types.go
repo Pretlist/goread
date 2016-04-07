@@ -51,17 +51,17 @@ type Chat struct {
 	Id          int64  `datastore:"-" goon:"id"`
 	Created     string `datastore:"cr,noindex"`
 	Destination string `datastore:"de,noindex"`
-	To 			string `datastore:"to,noindex"`
-	From     	string `datastore:"fr,noindex"`
-	Text       	string `datastore:"tx,noindex"`
+	To          string `datastore:"to,noindex"`
+	From        string `datastore:"fr,noindex"`
+	Text        string `datastore:"tx,noindex"`
 	Type        string `datastore:"ty,noindex"`
 }
 
 type ChatCursor struct {
-	_kind       string  `goon:"kind,CC"`
-	Id          string  `datastore:"-" goon:"id"`
-	Cursor      int64   `datastore:"cr,noindex"`
-	ReadChats   string  `datastore:"rc,noindex"`
+	_kind     string `goon:"kind,CC"`
+	Id        string `datastore:"-" goon:"id"`
+	Cursor    int64  `datastore:"cr,noindex"`
+	ReadChats string `datastore:"rc,noindex"`
 }
 
 const (
@@ -141,10 +141,11 @@ type readStory struct {
 type Read map[readStory]bool
 
 type Channel struct {
-	_kind     	string `goon:"kind,C"`
-	Id        	string `datastore:"-" goon:"id"`
+	_kind       string `goon:"kind,C"`
+	Id          string `datastore:"-" goon:"id"`
 	DisplayName string `datastore:"dn,noindex"`
-	FeedLinks 	string `datastore:"f,noindex"`
+	FeedLinks   string `datastore:"f,noindex"`
+	Tags        string `datastore:"t,noindex"`
 }
 
 type Message struct {
