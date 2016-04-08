@@ -133,9 +133,9 @@ func SetStatus(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	urlfetchClient := urlfetch.Client(cn)
 
 	client := pusher.Client{
-		AppId:      "178872",
-		Key:        "2aad67c195708eaa0e5f",
-		Secret:     "048f50b1be4faa0aa64b",
+		AppId:      "184465",
+		Key:        "e2aac50ec511259792df",
+		Secret:     "72f723c5a34c6d3efa0d",
 		HttpClient: urlfetchClient,
 	}
 
