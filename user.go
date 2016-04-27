@@ -66,6 +66,41 @@ func LoginGoogle(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, routeUrl("main"), http.StatusFound)
 }
 
+// func LoginGoogle(c mpg.Context, w http.ResponseWriter, r *http.Request) {
+// 	ctx := newgae.NewContext(r)
+// 	scopes := []string{"https://www.googleapis.com/auth/userinfo.email",
+// 		"https://www.googleapis.com/auth/drive",
+// 		"https://www.googleapis.com/auth/drive.appdata",
+// 		"https://www.googleapis.com/auth/drive.file",
+// 		"https://www.googleapis.com/auth/drive.metadata",
+// 		"https://www.googleapis.com/auth/drive.metadata.readonly",
+// 		"https://www.googleapis.com/auth/drive.photos.readonly",
+// 		"https://www.googleapis.com/auth/drive.readonly",
+// 		"https://www.googleapis.com/auth/calendar.readonly",
+// 	}
+// 	cu, err := newuser.CurrentOAuth(ctx, scopes...)
+// 	if err != nil {
+// 		log.Errorf(ctx, "Error in currentoauth: %v", err)
+// 	}
+// 	log.Debugf(ctx, "User found: %v", cu)
+
+// 	if cu != nil {
+// 		gn := goon.FromContext(c)
+// 		u := &User{Id: cu.ID}
+// 		if err := gn.Get(u); err == datastore.ErrNoSuchEntity {
+// 			u.Email = cu.Email
+// 			u.Read = time.Now().Add(-time.Hour * 24)
+// 			gn.Put(u)
+// 		}
+// 	} else {
+// 		url, _ := user.LoginURL(c, routeUrl("main"))
+// 		http.Redirect(w, r, url, http.StatusFound)
+// 		return
+// 	}
+
+// 	http.Redirect(w, r, routeUrl("main"), http.StatusFound)
+// }
+
 func Logout(c mpg.Context, w http.ResponseWriter, r *http.Request) {
 	if appengine.IsDevAppServer() {
 		if u, err := user.LogoutURL(c, routeUrl("main")); err == nil {
